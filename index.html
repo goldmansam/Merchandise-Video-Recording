@@ -90,6 +90,34 @@
       color: rgba(255, 255, 255, 0.85);
     }
 
+    #info-card .buttons {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+    }
+
+    #info-card button {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 8px;
+      padding: 10px 20px;
+      color: white;
+      font-family: 'Work Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    #info-card button:hover {
+      background: rgba(255, 255, 255, 0.25);
+      border-color: rgba(255, 255, 255, 0.5);
+    }
+
+    #info-card.visible {
+      pointer-events: auto;
+    }
+
     #controls-menu {
       position: fixed;
       bottom: 20px;
@@ -166,6 +194,10 @@
     <p class="inspiration" id="card-inspiration"></p>
     <p class="label">Role:</p>
     <p class="role">Designer</p>
+    <div class="buttons">
+      <button id="btn-continue">Continue</button>
+      <button id="btn-return">Return to Start</button>
+    </div>
   </div>
   <div id="controls-menu">
     <div class="control-group">
@@ -439,16 +471,16 @@
     };
 
     // Presentation mode variables
-    let presentationMode = true;
     let presentationPhase = 'moving'; // 'moving', 'rotating', 'displaying'
     let rotationStartAngle = 0;
     let rotationTimer = 0;
-    let displayTimer = 0;
-    let pathPauseTime = 0;
     let presentingItemIndex = -1;
     const ROTATION_DURATION = 200;
-    const DISPLAY_DURATION = 360; // 6 seconds at 60fps for comfortable reading time
-    const itemsPresentedThisCycle = new Set();
+    const PROXIMITY_THRESHOLD = 4; // Distance to trigger item stop
+
+    // Store initial camera position for "return to start"
+    let startingCameraPosition = null;
+    let startingCameraRotation = null;
 
     // Load the clothing store
     loader.load('clothing_store.glb', (gltf) => {
@@ -492,6 +524,10 @@
       camera.position.set(0, 0.05, frontEdge - 2); // Lower (0.05) and forward (frontEdge - 2)
       camera.lookAt(0, 0.05, 0);
       initialCameraSet = true;
+
+      // Store starting position for "return to start" feature
+      startingCameraPosition = camera.position.clone();
+      startingCameraRotation = camera.rotation.clone();
 
       // Store camera z position for clothing path
       window.cameraStartZ = frontEdge;
@@ -682,7 +718,6 @@
     let time = 0;
 
     // Helper function to show/hide info card
-    let currentCardSide = 'left'; // Track which side to show next
     function showInfoCard(item, itemIndex) {
       const info = clothingInfo[item.filename];
       if (info) {
@@ -695,12 +730,32 @@
         card.classList.remove('left', 'right');
         card.classList.add(side);
         card.classList.add('visible');
+
+        // Unlock controls so user can click buttons
+        controls.unlock();
       }
     }
 
     function hideInfoCard() {
       document.getElementById('info-card').classList.remove('visible');
+      presentationPhase = 'moving';
+      presentingItemIndex = -1;
     }
+
+    // Button handlers
+    document.getElementById('btn-continue').addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideInfoCard();
+    });
+
+    document.getElementById('btn-return').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (startingCameraPosition && startingCameraRotation) {
+        camera.position.copy(startingCameraPosition);
+        camera.rotation.copy(startingCameraRotation);
+      }
+      hideInfoCard();
+    });
 
     function animate() {
       requestAnimationFrame(animate);
@@ -735,7 +790,7 @@
       }
 
       // Handle presentation mode state machine
-      if (presentationMode && presentationPhase === 'rotating') {
+      if (presentationPhase === 'rotating') {
         rotationTimer++;
 
         if (presentingItemIndex >= 0 && presentingItemIndex < clothingModels.length) {
@@ -745,19 +800,11 @@
 
           if (rotationTimer >= ROTATION_DURATION) {
             presentationPhase = 'displaying';
-            displayTimer = 0;
             showInfoCard(item, presentingItemIndex);
           }
         }
-      } else if (presentationMode && presentationPhase === 'displaying') {
-        displayTimer++;
-
-        if (displayTimer >= DISPLAY_DURATION) {
-          hideInfoCard();
-          presentationPhase = 'moving';
-          presentingItemIndex = -1;
-        }
       }
+      // 'displaying' phase waits for button click - no auto-dismiss
 
       // Animate clothing items
       clothingModels.forEach((item, index) => {
@@ -786,22 +833,20 @@
           item.container.position.x = start.x + (end.x - start.x) * segmentT;
           item.container.position.z = start.z + (end.z - start.z) * segmentT;
 
-          // Detect when item reaches stopping point on segment 5 (waypoint 5 to 0)
-          // Stop at 60% along segment (aligned with center/midpoint of store, x ≈ 0)
-          const isFrontSegment = (currentSegment === 5);
-          const isAtStoppingPoint = (segmentT >= 0.6 && segmentT < 0.61); // 60% along segment, 1 frame window
+          // Proximity-based detection: stop item when player approaches it
+          const distanceToPlayer = Math.sqrt(
+            Math.pow(item.container.position.x - camera.position.x, 2) +
+            Math.pow(item.container.position.z - camera.position.z, 2)
+          );
 
-          if (presentationMode &&
-              presentationPhase === 'moving' &&
-              isFrontSegment &&
-              isAtStoppingPoint &&
-              !itemsPresentedThisCycle.has(index)) {
+          if (presentationPhase === 'moving' &&
+              distanceToPlayer < PROXIMITY_THRESHOLD &&
+              controls.isLocked) {
 
             // Trigger presentation
             presentationPhase = 'rotating';
             presentingItemIndex = index;
             rotationTimer = 0;
-            itemsPresentedThisCycle.add(index);
 
             // Store the current rotation angle
             const dx = end.x - start.x;
@@ -810,15 +855,7 @@
             const additionalRotation = progress * Math.PI * 2;
             rotationStartAngle = baseRotation + additionalRotation;
 
-            console.log(`🎯 Presentation triggered for ${item.filename} at position (${item.container.position.x.toFixed(2)}, ${item.container.position.z.toFixed(2)}), distance: ${distanceToTarget.toFixed(2)}`);
-          }
-
-          // Clear cycle tracking when all items have been presented
-          if (itemsPresentedThisCycle.size === clothingModels.length &&
-              currentSegment === 0 &&
-              segmentT < 0.1) {
-            itemsPresentedThisCycle.clear();
-            console.log('New cycle started - presentation tracking reset');
+            console.log(`🎯 Presentation triggered for ${item.filename} - player approached (distance: ${distanceToPlayer.toFixed(2)})`);
           }
 
           // Only update rotation if not in presentation mode
