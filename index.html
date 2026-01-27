@@ -910,22 +910,15 @@
               console.log('New cycle started');
             }
           } else {
-            // EXPLORATION MODE: Walk into item to trigger
+            // EXPLORATION MODE: Walk into item to trigger (no rotation, just stop and show)
             if (presentationPhase === 'moving' &&
                 distanceToPlayer < WALK_INTO_DISTANCE &&
                 controls.isLocked) {
 
-              // Trigger presentation
-              presentationPhase = 'rotating';
+              // Skip rotation, go straight to displaying
+              presentationPhase = 'displaying';
               presentingItemIndex = index;
-              rotationTimer = 0;
-
-              // Store the current rotation angle
-              const dx = end.x - start.x;
-              const dz = end.z - start.z;
-              const baseRotation = Math.atan2(dx, dz);
-              const additionalRotation = progress * Math.PI * 2;
-              rotationStartAngle = baseRotation + additionalRotation;
+              showInfoCard(item, index, true); // true = show buttons
 
               console.log(`🎯 Walk-into presentation for ${item.filename}`);
             }
