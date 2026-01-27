@@ -207,10 +207,10 @@
     <div class="control-group">
       <span class="control-label">Move:</span>
       <div class="keys">
-        <span class="key">↑</span>
-        <span class="key">↓</span>
-        <span class="key">←</span>
-        <span class="key">→</span>
+        <span class="key">W</span>
+        <span class="key">A</span>
+        <span class="key">S</span>
+        <span class="key">D</span>
       </div>
     </div>
     <div class="divider"></div>
@@ -383,10 +383,10 @@
 
     document.addEventListener('keydown', (e) => {
       switch(e.code) {
-        case 'ArrowUp': moveState.forward = true; break;
-        case 'ArrowDown': moveState.backward = true; break;
-        case 'ArrowLeft': moveState.left = true; break;
-        case 'ArrowRight': moveState.right = true; break;
+        case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
+        case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
+        case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
+        case 'KeyD': case 'ArrowRight': moveState.right = true; break;
         case 'KeyP': // Press P to add current position as waypoint
           if (controls.isLocked) {
             const waypoint = {
@@ -412,11 +412,6 @@
             console.log('Total waypoints:', pathWaypoints.length);
           }
           break;
-        case 'KeyS': // Press S to start/stop path recording mode
-          if (e.ctrlKey || e.metaKey) return; // Don't interfere with browser save
-          isRecordingPath = !isRecordingPath;
-          console.log(isRecordingPath ? 'Path recording started - press P to add waypoints' : 'Path recording stopped');
-          break;
         case 'KeyC': // Press C to clear all waypoints
           pathWaypoints.length = 0;
           // Remove visual markers
@@ -440,10 +435,10 @@
 
     document.addEventListener('keyup', (e) => {
       switch(e.code) {
-        case 'ArrowUp': moveState.forward = false; break;
-        case 'ArrowDown': moveState.backward = false; break;
-        case 'ArrowLeft': moveState.left = false; break;
-        case 'ArrowRight': moveState.right = false; break;
+        case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
+        case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
+        case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
+        case 'KeyD': case 'ArrowRight': moveState.right = false; break;
       }
     });
 
