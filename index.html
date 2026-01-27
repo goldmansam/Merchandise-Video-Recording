@@ -91,9 +91,17 @@
     }
 
     #info-card .buttons {
-      display: flex;
+      display: none;
       gap: 12px;
       margin-top: 20px;
+    }
+
+    #info-card.with-buttons .buttons {
+      display: flex;
+    }
+
+    #info-card.with-buttons {
+      pointer-events: auto;
     }
 
     #info-card button {
@@ -112,10 +120,6 @@
     #info-card button:hover {
       background: rgba(255, 255, 255, 0.25);
       border-color: rgba(255, 255, 255, 0.5);
-    }
-
-    #info-card.visible {
-      pointer-events: auto;
     }
 
     #controls-menu {
@@ -184,45 +188,10 @@
       color: rgba(255, 255, 255, 0.7);
       font-style: italic;
     }
-
-    #lock-indicator {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 60px;
-      height: 60px;
-      border: 3px solid rgba(255, 255, 255, 0.3);
-      border-radius: 50%;
-      pointer-events: none;
-      opacity: 0;
-      transition: all 0.2s ease;
-      z-index: 999;
-    }
-
-    #lock-indicator.targeting {
-      opacity: 1;
-      border-color: rgba(255, 200, 100, 0.8);
-      box-shadow: 0 0 20px rgba(255, 200, 100, 0.4);
-    }
-
-    #lock-indicator.locked {
-      opacity: 1;
-      border-color: rgba(100, 255, 150, 1);
-      box-shadow: 0 0 30px rgba(100, 255, 150, 0.6);
-      animation: pulse 0.5s ease-out;
-    }
-
-    @keyframes pulse {
-      0% { transform: translate(-50%, -50%) scale(1); }
-      50% { transform: translate(-50%, -50%) scale(1.2); }
-      100% { transform: translate(-50%, -50%) scale(1); }
-    }
   </style>
 </head>
 <body>
   <div id="canvas-container"></div>
-  <div id="lock-indicator"></div>
   <div id="info-card">
     <h2 id="card-title"></h2>
     <p class="label">Inspiration:</p>
@@ -506,21 +475,20 @@
     };
 
     // Presentation mode variables
+    let presentationMode = true;
     let presentationPhase = 'moving'; // 'moving', 'rotating', 'displaying'
     let rotationStartAngle = 0;
     let rotationTimer = 0;
     let displayTimer = 0;
+    let pathPauseTime = 0;
     let presentingItemIndex = -1;
     const ROTATION_DURATION = 200;
-    const DISPLAY_DURATION = 360; // 6 seconds at 60fps for auto-presentation
-    const PROXIMITY_THRESHOLD = 3; // Distance to trigger item stop when looking at it
-    const LOOK_AT_THRESHOLD = 0.7; // Dot product threshold (how directly you're looking - 0.7 = ~45 degrees)
-
-    // Track if user has started exploring (moved away from start)
-    let userHasStartedExploring = false;
+    const DISPLAY_DURATION = 360; // 6 seconds at 60fps for comfortable reading time
     const itemsPresentedThisCycle = new Set();
+    const WALK_INTO_DISTANCE = 1.5; // Very close - basically touching
 
-    // Store initial camera position for "return to start"
+    // Track if user has started exploring
+    let userHasStartedExploring = false;
     let startingCameraPosition = null;
     let startingCameraRotation = null;
 
@@ -567,7 +535,7 @@
       camera.lookAt(0, 0.05, 0);
       initialCameraSet = true;
 
-      // Store starting position for "return to start" feature
+      // Store starting position for "return to start"
       startingCameraPosition = camera.position.clone();
       startingCameraRotation = camera.rotation.clone();
 
@@ -760,7 +728,7 @@
     let time = 0;
 
     // Helper function to show/hide info card
-    function showInfoCard(item, itemIndex, isAutoMode = false) {
+    function showInfoCard(item, itemIndex, showButtons = false) {
       const info = clothingInfo[item.filename];
       if (info) {
         document.getElementById('card-title').textContent = info.title;
@@ -773,24 +741,19 @@
         card.classList.add(side);
         card.classList.add('visible');
 
-        // Hide/show buttons based on mode
-        const buttonsDiv = card.querySelector('.buttons');
-        if (isAutoMode) {
-          buttonsDiv.style.display = 'none'; // Hide buttons in auto-presentation
+        // Show buttons only in exploration mode
+        if (showButtons) {
+          card.classList.add('with-buttons');
+          controls.unlock(); // Let user click buttons
         } else {
-          buttonsDiv.style.display = 'flex'; // Show buttons when exploring
-          controls.unlock(); // Unlock controls so user can click buttons
+          card.classList.remove('with-buttons');
         }
-
-        // Update lock indicator
-        document.getElementById('lock-indicator').classList.remove('targeting');
-        document.getElementById('lock-indicator').classList.add('locked');
       }
     }
 
     function hideInfoCard() {
-      document.getElementById('info-card').classList.remove('visible');
-      document.getElementById('lock-indicator').classList.remove('locked', 'targeting');
+      const card = document.getElementById('info-card');
+      card.classList.remove('visible', 'with-buttons');
       presentationPhase = 'moving';
       presentingItemIndex = -1;
     }
@@ -842,17 +805,17 @@
         }
       }
 
-      // Check if user has moved away from starting position
+      // Check if user has started exploring (moved away from start)
       if (startingCameraPosition && !userHasStartedExploring) {
         const distFromStart = camera.position.distanceTo(startingCameraPosition);
-        if (distFromStart > 2) {
+        if (distFromStart > 3) {
           userHasStartedExploring = true;
-          console.log('User started exploring - switching to look-at detection mode');
+          console.log('User started exploring');
         }
       }
 
       // Handle presentation mode state machine
-      if (presentationPhase === 'rotating') {
+      if (presentationMode && presentationPhase === 'rotating') {
         rotationTimer++;
 
         if (presentingItemIndex >= 0 && presentingItemIndex < clothingModels.length) {
@@ -863,21 +826,20 @@
           if (rotationTimer >= ROTATION_DURATION) {
             presentationPhase = 'displaying';
             displayTimer = 0;
-            showInfoCard(item, presentingItemIndex, !userHasStartedExploring); // Pass if auto-mode
+            showInfoCard(item, presentingItemIndex, userHasStartedExploring);
           }
         }
-      } else if (presentationPhase === 'displaying' && !userHasStartedExploring) {
-        // Auto-dismiss only in initial presentation mode (not exploring)
-        displayTimer++;
-        if (displayTimer >= DISPLAY_DURATION) {
-          hideInfoCard();
+      } else if (presentationMode && presentationPhase === 'displaying') {
+        // Auto-dismiss only in initial mode, not when exploring
+        if (!userHasStartedExploring) {
+          displayTimer++;
+          if (displayTimer >= DISPLAY_DURATION) {
+            hideInfoCard();
+            presentationPhase = 'moving';
+            presentingItemIndex = -1;
+          }
         }
-      }
-      // When exploring, 'displaying' phase waits for button click
-
-      // Reset targeting indicator at start of frame (will be set if looking at something)
-      if (userHasStartedExploring && presentationPhase === 'moving') {
-        document.getElementById('lock-indicator').classList.remove('targeting');
+        // When exploring, user must click a button to dismiss
       }
 
       // Animate clothing items
@@ -907,7 +869,7 @@
           item.container.position.x = start.x + (end.x - start.x) * segmentT;
           item.container.position.z = start.z + (end.z - start.z) * segmentT;
 
-          // Detection logic depends on mode
+          // Calculate distance to player
           const distanceToPlayer = Math.sqrt(
             Math.pow(item.container.position.x - camera.position.x, 2) +
             Math.pow(item.container.position.z - camera.position.z, 2)
@@ -915,11 +877,11 @@
 
           if (!userHasStartedExploring) {
             // ORIGINAL MODE: Auto-presentation when items reach front position
-            // Stop at 60% along segment 5 (front of store)
             const isFrontSegment = (currentSegment === 5);
-            const isAtStoppingPoint = (segmentT >= 0.6 && segmentT < 0.62);
+            const isAtStoppingPoint = (segmentT >= 0.6 && segmentT < 0.61);
 
-            if (presentationPhase === 'moving' &&
+            if (presentationMode &&
+                presentationPhase === 'moving' &&
                 isFrontSegment &&
                 isAtStoppingPoint &&
                 !itemsPresentedThisCycle.has(index)) {
@@ -945,46 +907,27 @@
                 currentSegment === 0 &&
                 segmentT < 0.1) {
               itemsPresentedThisCycle.clear();
-              console.log('New cycle started - presentation tracking reset');
+              console.log('New cycle started');
             }
           } else {
-            // EXPLORATION MODE: Look-at + proximity detection
-            // Calculate if player is looking at this item
-            const cameraDirection = new THREE.Vector3();
-            camera.getWorldDirection(cameraDirection);
-            cameraDirection.y = 0;
-            cameraDirection.normalize();
+            // EXPLORATION MODE: Walk into item to trigger
+            if (presentationPhase === 'moving' &&
+                distanceToPlayer < WALK_INTO_DISTANCE &&
+                controls.isLocked) {
 
-            const toItem = new THREE.Vector3(
-              item.container.position.x - camera.position.x,
-              0,
-              item.container.position.z - camera.position.z
-            ).normalize();
+              // Trigger presentation
+              presentationPhase = 'rotating';
+              presentingItemIndex = index;
+              rotationTimer = 0;
 
-            const dotProduct = cameraDirection.dot(toItem);
-            const isLookingAt = dotProduct > LOOK_AT_THRESHOLD;
-            const isCloseEnough = distanceToPlayer < PROXIMITY_THRESHOLD;
+              // Store the current rotation angle
+              const dx = end.x - start.x;
+              const dz = end.z - start.z;
+              const baseRotation = Math.atan2(dx, dz);
+              const additionalRotation = progress * Math.PI * 2;
+              rotationStartAngle = baseRotation + additionalRotation;
 
-            // Update lock indicator for this item (only show for closest looked-at item)
-            if (isLookingAt && isCloseEnough && presentationPhase === 'moving' && controls.isLocked) {
-              document.getElementById('lock-indicator').classList.add('targeting');
-
-              // Trigger after looking for a moment (or immediately if very close)
-              if (distanceToPlayer < PROXIMITY_THRESHOLD * 0.6) {
-                // Trigger presentation
-                presentationPhase = 'rotating';
-                presentingItemIndex = index;
-                rotationTimer = 0;
-
-                // Store the current rotation angle
-                const dx = end.x - start.x;
-                const dz = end.z - start.z;
-                const baseRotation = Math.atan2(dx, dz);
-                const additionalRotation = progress * Math.PI * 2;
-                rotationStartAngle = baseRotation + additionalRotation;
-
-                console.log(`🎯 Look-at presentation for ${item.filename} (distance: ${distanceToPlayer.toFixed(2)}, dot: ${dotProduct.toFixed(2)})`);
-              }
+              console.log(`🎯 Walk-into presentation for ${item.filename}`);
             }
           }
 
