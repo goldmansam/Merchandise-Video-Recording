@@ -306,13 +306,22 @@
     });
 
     controls.addEventListener('lock', () => {
-      console.log('Controls locked - use Arrow Keys to move, mouse to look around');
-      document.getElementById('controls-menu').classList.add('hidden');
+      console.log('Controls locked - use WASD to move, mouse to look around');
+      // Keep menu visible so key highlighting is shown
+      const menu = document.getElementById('controls-menu');
+      const instruction = menu.querySelector('.instruction');
+      if (instruction) {
+        instruction.style.display = 'none';
+      }
     });
 
     controls.addEventListener('unlock', () => {
       console.log('Controls unlocked - click to re-enter');
-      document.getElementById('controls-menu').classList.remove('hidden');
+      const menu = document.getElementById('controls-menu');
+      const instruction = menu.querySelector('.instruction');
+      if (instruction) {
+        instruction.style.display = 'block';
+      }
     });
 
     scene.add(controls.getObject());
@@ -891,7 +900,7 @@
 
         // If path waypoints exist, follow the path
         if (pathWaypoints.length >= 2) {
-          const speed = 0.08; // Speed along path (increased from 0.05)
+          const speed = 0.06; // Speed along path
           const spacing = 0.2; // Spacing between items (0-1 range)
 
           // Calculate position along path (0 to 1)
