@@ -175,6 +175,14 @@
       min-width: 32px;
       text-align: center;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      transition: all 0.1s ease;
+    }
+
+    .key.active {
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.3));
+      border-color: rgba(255, 255, 255, 0.7);
+      box-shadow: 0 4px 16px rgba(255, 255, 255, 0.4);
+      transform: translateY(-2px);
     }
 
     .divider {
@@ -207,10 +215,10 @@
     <div class="control-group">
       <span class="control-label">Move:</span>
       <div class="keys">
-        <span class="key">W</span>
-        <span class="key">A</span>
-        <span class="key">S</span>
-        <span class="key">D</span>
+        <span class="key" data-key="w">W</span>
+        <span class="key" data-key="a">A</span>
+        <span class="key" data-key="s">S</span>
+        <span class="key" data-key="d">D</span>
       </div>
     </div>
     <div class="divider"></div>
@@ -313,6 +321,21 @@
     const moveSpeed = 0.08; // Slower movement
     const moveState = { forward: false, backward: false, left: false, right: false };
 
+    // Key highlighting functions
+    function highlightKey(key) {
+      const keyElement = document.querySelector(`.key[data-key="${key}"]`);
+      if (keyElement) {
+        keyElement.classList.add('active');
+      }
+    }
+
+    function unhighlightKey(key) {
+      const keyElement = document.querySelector(`.key[data-key="${key}"]`);
+      if (keyElement) {
+        keyElement.classList.remove('active');
+      }
+    }
+
     // Path creation for clothing movement
     const pathWaypoints = [
       {
@@ -383,10 +406,22 @@
 
     document.addEventListener('keydown', (e) => {
       switch(e.code) {
-        case 'KeyW': case 'ArrowUp': moveState.forward = true; break;
-        case 'KeyS': case 'ArrowDown': moveState.backward = true; break;
-        case 'KeyA': case 'ArrowLeft': moveState.left = true; break;
-        case 'KeyD': case 'ArrowRight': moveState.right = true; break;
+        case 'KeyW': case 'ArrowUp':
+          moveState.forward = true;
+          highlightKey('w');
+          break;
+        case 'KeyS': case 'ArrowDown':
+          moveState.backward = true;
+          highlightKey('s');
+          break;
+        case 'KeyA': case 'ArrowLeft':
+          moveState.left = true;
+          highlightKey('a');
+          break;
+        case 'KeyD': case 'ArrowRight':
+          moveState.right = true;
+          highlightKey('d');
+          break;
         case 'KeyP': // Press P to add current position as waypoint
           if (controls.isLocked) {
             const waypoint = {
@@ -435,10 +470,22 @@
 
     document.addEventListener('keyup', (e) => {
       switch(e.code) {
-        case 'KeyW': case 'ArrowUp': moveState.forward = false; break;
-        case 'KeyS': case 'ArrowDown': moveState.backward = false; break;
-        case 'KeyA': case 'ArrowLeft': moveState.left = false; break;
-        case 'KeyD': case 'ArrowRight': moveState.right = false; break;
+        case 'KeyW': case 'ArrowUp':
+          moveState.forward = false;
+          unhighlightKey('w');
+          break;
+        case 'KeyS': case 'ArrowDown':
+          moveState.backward = false;
+          unhighlightKey('s');
+          break;
+        case 'KeyA': case 'ArrowLeft':
+          moveState.left = false;
+          unhighlightKey('a');
+          break;
+        case 'KeyD': case 'ArrowRight':
+          moveState.right = false;
+          unhighlightKey('d');
+          break;
       }
     });
 
@@ -787,10 +834,10 @@
         right.crossVectors(camera.up, direction).normalize();
 
         if (moveState.forward) {
-          camera.position.addScaledVector(direction, -moveSpeed);
+          camera.position.addScaledVector(direction, moveSpeed);
         }
         if (moveState.backward) {
-          camera.position.addScaledVector(direction, moveSpeed);
+          camera.position.addScaledVector(direction, -moveSpeed);
         }
         if (moveState.left) {
           camera.position.addScaledVector(right, moveSpeed); // Reversed for correct left movement
