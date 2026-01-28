@@ -912,18 +912,26 @@
           const currentSegment = Math.floor(segmentProgress);
           const segmentT = segmentProgress - currentSegment;
 
-          // Apply easing function for smooth acceleration/deceleration
-          const easedT = segmentT < 0.5
-            ? 2 * segmentT * segmentT  // Ease in (quadratic)
-            : 1 - Math.pow(-2 * segmentT + 2, 2) / 2; // Ease out (quadratic)
-
           // Get start and end waypoints (loop back to start)
           const start = pathWaypoints[currentSegment % totalSegments];
           const end = pathWaypoints[(currentSegment + 1) % totalSegments];
 
-          // Interpolate position with easing
-          item.container.position.x = start.x + (end.x - start.x) * easedT;
-          item.container.position.z = start.z + (end.z - start.z) * easedT;
+          // Check if this is the presentation segment and near stopping point
+          const isFrontSegment = (currentSegment === 5);
+          const isNearStoppingPoint = (segmentT >= 0.55 && segmentT <= 0.65);
+
+          // Apply easing only when not at presentation stopping points
+          let interpolationT = segmentT;
+          if (!isFrontSegment || !isNearStoppingPoint || userHasStartedExploring) {
+            // Apply easing function for smooth acceleration/deceleration
+            interpolationT = segmentT < 0.5
+              ? 2 * segmentT * segmentT  // Ease in (quadratic)
+              : 1 - Math.pow(-2 * segmentT + 2, 2) / 2; // Ease out (quadratic)
+          }
+
+          // Interpolate position
+          item.container.position.x = start.x + (end.x - start.x) * interpolationT;
+          item.container.position.z = start.z + (end.z - start.z) * interpolationT;
 
           // Calculate distance to player
           const distanceToPlayer = Math.sqrt(
